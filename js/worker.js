@@ -2,8 +2,13 @@ import { Engine, parseRoads, parseLand } from './engine.js';
 import { colorLUT, levelLUT, MAX_MIN } from './colors.js';
 
 const TILE = 256;
+const NO_TRIP = [150, 155, 165];   // gris: no alcanza a ir y volver
 let engine = null;
+let layers = [];                   // una capa por origen
+let pool = [];
+let scratch = null;                // capa sin grilla para evaluar candidatos
 let colors = null;
+let view = { redFrom: 240, window: 0, combine: 'max' };
 const levels = levelLUT();
 
 // Algunos servidores ya descomprimen el .gz por su cuenta: se mira la firma
@@ -21,7 +26,25 @@ async function init() {
     fetch(new URL('../data/flights.json', import.meta.url)).then((r) => r.json()),
   ]);
   engine = new Engine(parseRoads(roads), flights, parseLand(land));
+  scratch = engine.layer({ field: false });
   return { airports: flights.airports.length, routes: flights.to.length };
+}
+
+const combine = (values) => {
+  if (values.some((v) => v === null || v === Infinity)) return Infinity;
+  return view.combine === 'avg' ? values.reduce((s, v) => s + v, 0) / values.length : Math.max(...values);
+};
+
+function combined(lat, lon) {
+  if (layers.length === 1) return engine.sample(layers[0], lat, lon);
+  let max = 0, sum = 0;
+  for (const l of layers) {
+    const t = engine.sample(l, lat, lon);
+    if (t === Infinity) return Infinity;
+    sum += t;
+    if (t > max) max = t;
+  }
+  return view.combine === 'avg' ? sum / layers.length : max;
 }
 
 function renderTile(z, x, y) {
@@ -33,9 +56,10 @@ function renderTile(z, x, y) {
     const lat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * my))) * 180) / Math.PI;
     for (let i = 0; i < side; i++) {
       const lon = ((x + (i + 0.5) / TILE) / n) * 360 - 180;
-      t[j * side + i] = engine.sample(lat, lon);
+      t[j * side + i] = combined(lat, lon);
     }
   }
+  const limit = view.window ? view.window / 2 : Infinity;
   const px = new Uint8ClampedArray(TILE * TILE * 4);
   for (let j = 0; j < TILE; j++) {
     for (let i = 0; i < TILE; i++) {
@@ -48,9 +72,10 @@ function renderTile(z, x, y) {
         (down !== Infinity && levels[Math.min(MAX_MIN, down | 0)] !== lv);
       const k = (j * TILE + i) * 4;
       const shade = edge ? 0.62 : 1;
-      px[k] = colors[m * 3] * shade;
-      px[k + 1] = colors[m * 3 + 1] * shade;
-      px[k + 2] = colors[m * 3 + 2] * shade;
+      const rgb = v >= limit ? NO_TRIP : [colors[m * 3], colors[m * 3 + 1], colors[m * 3 + 2]];
+      px[k] = rgb[0] * shade;
+      px[k + 1] = rgb[1] * shade;
+      px[k + 2] = rgb[2] * shade;
       px[k + 3] = 255;
     }
   }
@@ -61,28 +86,49 @@ function renderTile(z, x, y) {
 
 const handlers = {
   init,
-  compute({ lat, lon, params }) {
+  compute({ origins, params }) {
     const t0 = performance.now();
-    engine.compute(lat, lon, params);
-    colors = colorLUT(engine.params.redFrom);
+    while (pool.length < origins.length) pool.push(engine.layer());
+    layers = origins.map((o, i) => {
+      engine.compute(pool[i], o.lat, o.lon, params);
+      return pool[i];
+    });
     return { ms: Math.round(performance.now() - t0) };
   },
-  colors({ redFrom }) {
-    engine.params.redFrom = redFrom;
-    colors = colorLUT(redFrom);
+  view(next) {
+    if (next.redFrom !== view.redFrom || !colors) colors = colorLUT(next.redFrom);
+    view = next;
   },
   tile({ z, x, y }) {
-    if (!engine?.origin) return null;
+    if (!layers.length) return null;
     return renderTile(z, x, y);
   },
   probe({ lat, lon }) {
-    if (!engine?.origin) return null;
-    const t = engine.sample(lat, lon);
+    if (!layers.length) return null;
+    const t = combined(lat, lon);
     return t === Infinity ? null : t;
   },
   trip({ lat, lon }) {
-    if (!engine?.origin) return null;
-    return engine.trip(lat, lon);
+    if (!layers.length) return null;
+    const trips = layers.map((l) => engine.trip(l, lat, lon));
+    return { trips, total: combine(trips.map((t) => t?.total ?? null)) };
+  },
+  // Por candidato y origen: viaje normal (con su detalle) y tiempo con taco
+  evaluate({ origins, candidates, params, traffic }) {
+    const out = candidates.map(() => origins.map(() => ({ trip: null, taco: Infinity })));
+    origins.forEach((o, oi) => {
+      engine.compute(scratch, o.lat, o.lon, { ...params, traffic: 1 }, { full: false });
+      candidates.forEach((c, ci) => {
+        const trip = engine.trip(scratch, c.lat, c.lon);
+        out[ci][oi].trip = trip;
+        out[ci][oi].taco = trip ? trip.total : Infinity;
+      });
+      if (traffic > 1) {
+        engine.compute(scratch, o.lat, o.lon, { ...params, traffic }, { full: false });
+        candidates.forEach((c, ci) => { out[ci][oi].taco = engine.timeAt(scratch, c.lat, c.lon); });
+      }
+    });
+    return out;
   },
 };
 

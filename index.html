@@ -21,6 +21,7 @@
       --accent: #2f6fde;
       --origin: #1f2430;
       --dest: #2f6fde;
+      --cand: #b7791f;
       --drive: #8c93a5;
       --airport: #c9cdd8;
       --flight: #2f6fde;
@@ -70,16 +71,39 @@
     #results li.muted { padding: 8px 10px; }
 
     .label { display: block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-    #origin-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    #origin-row strong { font-weight: 600; }
     #hint { margin: 0; padding: 10px 12px; border-radius: 10px; background: #eef3fd; color: #27467f; }
     .row { display: flex; gap: 8px; align-items: center; }
+    .row.wrap { flex-wrap: wrap; justify-content: space-between; }
+    .row.spread { justify-content: space-between; }
+
+    #origins, #scenario-box { display: flex; flex-direction: column; gap: 8px; }
+    #origin-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+    #origin-list li { display: flex; align-items: center; gap: 8px; }
+    .origin-name {
+      flex: 1; min-width: 0; text-align: left; font: inherit; font-weight: 600; color: var(--ink);
+      background: none; border: 0; padding: 4px 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .origin-name:hover { color: var(--accent); }
+    .badge {
+      width: 22px; height: 22px; border-radius: 50%; flex: none; display: grid; place-items: center;
+      background: var(--origin); color: #fff; font-size: 11px; font-weight: 700;
+    }
+
+    .seg { display: flex; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 2px; }
+    .seg button {
+      flex: 1; font: inherit; font-size: 13px; font-weight: 500; color: var(--ink-2); background: none; border: 0;
+      padding: 6px 8px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+    }
+    .seg button:hover { color: var(--ink); }
+    .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(20, 24, 36, .15); }
+    .field-label { font-size: 12px; color: var(--muted); margin-bottom: -4px; }
 
     button.chip {
       font: inherit; font-weight: 500; border: 1px solid var(--line); background: var(--surface);
       padding: 6px 12px; border-radius: 999px; cursor: pointer; color: var(--ink); white-space: nowrap;
     }
     button.chip:hover { background: var(--surface-2); }
+    button.chip:disabled { cursor: default; color: var(--ink-2); background: var(--surface-2); }
     .link-btn { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; font-weight: 500; }
     .link-btn:hover { text-decoration: underline; }
     .icon-btn { font: 20px/1 inherit; width: 30px; height: 30px; border-radius: 8px; border: 0; background: none; cursor: pointer; color: var(--muted); }
@@ -91,6 +115,40 @@
     #legend-ticks span:first-child { transform: none; left: -6px !important; }
     #legend-ticks span:last-child { transform: translateX(-100%); left: calc(100% + 6px) !important; }
     #legend p { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+    #legend-title { font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+    .nogo { display: inline-flex; align-items: center; gap: 6px; }
+    .nogo::before { content: ""; width: 10px; height: 10px; border-radius: 3px; background: rgb(150, 155, 165); }
+
+    .context { margin: -6px 0 0; font-size: 12px; color: var(--muted); }
+    .useful { margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); color: var(--ink-2); }
+    .useful strong { color: var(--ink); }
+    .per-origin { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+    .per-origin summary { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+    .per-origin summary span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .per-origin summary::after { margin-left: 4px; }
+    .per-origin[open] summary { margin-bottom: 8px; }
+    .climate { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+    .climate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; color: var(--ink-2); }
+    .climate-grid strong { color: var(--ink); }
+
+    #candidates { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+    #cand-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+    .cand { display: flex; align-items: start; gap: 4px; border: 1px solid var(--line); border-radius: 12px; padding: 4px 4px 4px 0; }
+    .cand-main {
+      flex: 1; min-width: 0; display: flex; gap: 10px; text-align: left; font: inherit; color: inherit;
+      background: none; border: 0; padding: 6px 0 6px 10px; cursor: pointer;
+    }
+    .cand-main:hover strong { color: var(--accent); }
+    .cand-num {
+      width: 22px; height: 22px; border-radius: 50%; flex: none; display: grid; place-items: center;
+      background: var(--cand); color: #fff; font-size: 11px; font-weight: 700; margin-top: 1px;
+    }
+    .cand-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .cand-body > strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cand-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+    .cand-stats span { display: flex; flex-direction: column; font-size: 11px; color: var(--muted); line-height: 1.3; }
+    .cand-stats b { font-size: 14px; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .cand-body small { font-size: 11px; line-height: 1.4; }
 
     #trip { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
     .trip-head { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
@@ -146,6 +204,14 @@
     .pin-origin::before { background: var(--origin); }
     .pin-dest::before { background: var(--dest); }
     .pin-origin { cursor: grab; }
+    .pin > span { position: absolute; left: 0; right: 0; top: 6px; text-align: center; color: #fff; font: 700 11px/1 Inter, system-ui, sans-serif; z-index: 1; }
+    .pin-origin:has(> span)::after { display: none; }
+    .pin-cand {
+      width: 22px; height: 22px; border-radius: 50%; background: var(--cand); border: 2px solid #fff;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
+    }
+    .pin-cand::before, .pin-cand::after { display: none; }
+    .pin-cand > span { top: 4px; font-size: 10px; }
 
     @media (max-width: 640px) {
       #panel {
@@ -154,6 +220,7 @@
       }
       header p { display: none; }
       #status { top: 12px; }
+      .seg button { font-size: 12px; padding: 6px 4px; white-space: normal; line-height: 1.2; }
     }
   </style>
 </head>
@@ -172,20 +239,47 @@
     </div>
 
     <p id="hint"></p>
-    <div class="row" id="cancel-row"><button class="chip" id="cancel-pick" hidden>Mantener origen actual</button></div>
+    <div class="row"><button class="chip" id="cancel-pick" hidden>Cancelar</button></div>
 
-    <section id="origin-row" hidden>
-      <div><span class="label">Origen</span><strong id="origin-name">…</strong></div>
-      <button class="chip" id="change-origin">Cambiar</button>
+    <section id="origins" hidden>
+      <span class="label">Desde</span>
+      <ol id="origin-list"></ol>
+      <div class="row"><button class="chip" id="add-origin">+ Agregar otro origen</button></div>
+      <div id="combine-row" hidden>
+        <div class="seg" id="seg-combine">
+          <button data-value="max">El más lejano</button>
+          <button data-value="avg">Promedio</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="scenario-box" hidden>
+      <span class="label">Cómo y cuándo</span>
+      <div class="seg" id="seg-flights">
+        <button data-value="true">Auto + avión</button>
+        <button data-value="false">Solo auto</button>
+      </div>
+      <div class="seg" id="seg-scenario">
+        <button data-value="any">Cualquier día</button>
+        <button data-value="weekend">Fin de semana</button>
+        <button data-value="long">Fds largo</button>
+      </div>
     </section>
 
     <section id="legend" hidden>
+      <div id="legend-title"></div>
       <div id="legend-bar"></div>
       <div id="legend-ticks"></div>
-      <p>Rojo desde <strong id="legend-red"></strong>. Las líneas finas marcan <span id="legend-lines"></span> Toca el mapa para ver el viaje a ese punto.</p>
+      <p><span class="nogo" id="legend-nogo">Gris: no alcanza a ir y volver.</span> Rojo desde <strong id="legend-red"></strong> de viaje. Las líneas finas marcan <span id="legend-lines"></span> Toca el mapa para ver el viaje a ese punto.</p>
     </section>
 
     <section id="trip" hidden></section>
+
+    <section id="candidates" hidden>
+      <div class="row spread"><span class="label">Candidatos</span><small class="muted" id="cand-context"></small></div>
+      <ol id="cand-list"></ol>
+      <small class="muted">"Viernes con taco" usa el ajuste de taco; las horas allá suponen ida y vuelta con taco. La ruta exacta viene de OSRM.</small>
+    </section>
 
     <details id="settings">
       <summary>Ajustes del modelo</summary>
@@ -193,7 +287,7 @@
     </details>
 
     <footer>
-      <p>Cada punto suma la mejor combinación de auto y vuelos: caminos principales a velocidades promedio, rutas aéreas reales con su duración, más el tiempo en aeropuertos y escalas. Lejos de los caminos se avanza más lento, y el mar no se cruza.</p>
+      <p>Cada punto suma la mejor combinación de auto y vuelos: caminos principales a velocidades promedio, rutas aéreas reales con su duración, más el tiempo en aeropuertos y escalas. Lejos de los caminos se avanza más lento, y el mar no se cruza. En fin de semana, los primeros 60 km desde cada origen van más lento por el taco.</p>
       <p id="data-stats"></p>
     </footer>
   </aside>

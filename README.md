@@ -13,6 +13,16 @@ Santiago → Puerto Montt   4 h 32 min
 
 Todo corre en el navegador: no hay servidor ni API de pago.
 
+## Pensado para elegir una segunda vivienda
+
+- **Solo auto**: deja fuera los vuelos, que no sirven para ir cada fin de semana con bolsos y mascotas.
+- **Fin de semana / fin de semana largo**: los primeros 60 km desde el origen van más lento por el taco (×1,8 por defecto, ajustable). El mapa pasa a mostrar **las horas que alcanzas a estar allá**: 48 h (vie 19:00 → dom 19:00) o 72 h, menos la ida y la vuelta. En gris queda lo que no alcanza.
+- **Candidatos**: guarda hasta 8 lugares y compáralos lado a lado (normal, viernes con taco, horas allá en un fin de semana normal y uno largo). Los tramos en auto se recalculan con la ruta exacta de [OSRM](https://project-osrm.org/), que sí ve los caminos locales.
+- **Varios orígenes**: hasta 4 (tu casa, la de tus papás, la oficina…). El mapa y los candidatos usan el origen más lejano o el promedio.
+- **Clima**: días de lluvia, milímetros al año, máximas de verano e invierno y horas de sol, con promedios 2016–2025 de [Open-Meteo](https://open-meteo.com/).
+
+Los orígenes y candidatos quedan guardados en el navegador y también en el link, así que se pueden compartir.
+
 ## Cómo se calcula
 
 Caminos y vuelos forman **un solo grafo**:
@@ -32,7 +42,7 @@ Calcular un origen nuevo toma ~0,3 s en un Web Worker.
 - **Chile**: casi todo dentro de ±10 % (Santiago–Temuco, La Serena, Antofagasta, Pucón, Puerto Montt–Castro).
 - **Mundo**: error mediano 12 %. En algunos países la red de Natural Earth está mal clasificada y el modelo sale hasta ~35–40 % más lento (Moscú–San Petersburgo, Johannesburgo–Ciudad del Cabo, Bangkok–Chiang Mai). En la cordillera colombiana sale más rápido de lo real.
 
-Lo que no modela: horarios ni frecuencia de vuelos (una ruta semanal cuenta igual que una diaria), tráfico, trenes, buses ni pasos fronterizos terrestres.
+El taco es una aproximación (un multiplicador cerca del origen), no datos de tráfico reales. Lo que no modela: horarios ni frecuencia de vuelos (una ruta semanal cuenta igual que una diaria), tráfico, trenes, buses ni pasos fronterizos terrestres.
 
 ## Correr localmente
 

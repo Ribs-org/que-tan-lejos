@@ -28,17 +28,21 @@ const TRIPS = [
   ['santiago', 'mendoza'], ['santiago', 'buenosAires'], ['santiago', 'madrid'], ['santiago', 'tokyo'], ['santiago', 'valparaiso'],
 ];
 
+const WEEKEND = [
+  ['santiago', [-32.55, -71.45], 'Zapallar'], ['santiago', [-34.39, -72.00], 'Pichilemu'],
+  ['santiago', [-33.36, -71.65], 'Algarrobo'], ['santiago', [-39.28, -71.97], 'Pucón'],
+  ['santiago', [-41.47, -72.94], 'Puerto Montt'],
+];
+
 const hm = (m) => `${Math.floor(m / 60)}h${String(Math.round(m % 60)).padStart(2, '0')}`;
 const engine = loadEngine();
+const layer = engine.layer({ field: false });
 const { R, G, M } = engine.roads;
 console.log(`nodos viales ${R}, suelo ${G}, aristas ${M}`);
 
 function driveOnly(a, b) {
-  const saved = engine.params;
-  engine.compute(...P[a], { checkin: 1e7 });
-  const t = engine.sample(...P[b]);
-  engine.params = saved;
-  return t;
+  engine.compute(layer, ...P[a], { flights: false }, { full: false });
+  return engine.timeAt(layer, ...P[b]);
 }
 
 if (process.argv.includes('--osrm')) {
@@ -59,12 +63,27 @@ if (process.argv.includes('--osrm')) {
 console.log('\n--- viajes puerta a puerta ---');
 for (const [a, b] of TRIPS) {
   const t0 = performance.now();
-  engine.compute(...P[a]);
+  engine.compute(layer, ...P[a], {}, { full: false });
   const t1 = performance.now();
-  const trip = engine.trip(...P[b]);
+  const trip = engine.trip(layer, ...P[b]);
   const legs = trip?.legs.map((l) => {
     if (l.kind === 'flight') return `✈${l.from.iata}-${l.to.iata} ${hm(l.min)}`;
     return `${l.kind} ${hm(l.min)}`;
   }).join(' | ');
-  console.log(`${a} → ${b}: ${trip ? hm(trip.total) : 'sin datos'}  [${legs}]  (${(t1 - t0).toFixed(0)} ms)`);
+  console.log(`${a} → ${b}: ${trip ? hm(trip.total) : 'sin datos'}  [${legs}]  (dijkstra ${(t1 - t0).toFixed(0)} ms)`);
 }
+
+console.log('\n--- segunda vivienda: normal / solo auto / solo auto con taco ×1.8 ---');
+for (const [a, [lat, lon], label] of WEEKEND) {
+  const at = (params) => {
+    engine.compute(layer, ...P[a], params, { full: false });
+    return engine.timeAt(layer, lat, lon);
+  };
+  const normal = at({}), car = at({ flights: false }), taco = at({ flights: false, traffic: 1.8 });
+  console.log(`${label.padEnd(14)} ${hm(normal).padStart(6)}  ${hm(car).padStart(6)}  ${hm(taco).padStart(6)}  → ${(48 - (2 * taco) / 60).toFixed(0)} h allá un fin de semana`);
+}
+
+const full = engine.layer();
+const t0 = performance.now();
+engine.compute(full, ...P.santiago, {});
+console.log(`\ncapa completa (dijkstra + barrido mundial): ${(performance.now() - t0).toFixed(0)} ms`);
