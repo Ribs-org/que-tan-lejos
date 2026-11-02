@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>¿Qué tan lejos?</title>
+  <meta name="description" content="Mapa de calor del tiempo real de viaje puerta a puerta, sumando auto, aeropuertos y vuelos.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23e5482f'/%3E%3Ccircle cx='16' cy='16' r='10' fill='%23f2d33d'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%2312924a'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.14.0/dist/maplibre-gl.css">
+  <style>
+    :root {
+      --ink: #1f2430;
+      --ink-2: #4b5263;
+      --muted: #7a8193;
+      --line: #e4e6ec;
+      --surface: #ffffff;
+      --surface-2: #f5f6f9;
+      --accent: #2f6fde;
+      --origin: #1f2430;
+      --dest: #2f6fde;
+      --drive: #8c93a5;
+      --airport: #c9cdd8;
+      --flight: #2f6fde;
+      --radius: 14px;
+      --shadow: 0 8px 30px rgba(20, 24, 36, .14), 0 1px 3px rgba(20, 24, 36, .08);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font: 14px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: #eef0f3;
+      overflow: hidden;
+    }
+    #map { position: fixed; inset: 0; }
+    body.picking #map canvas { cursor: crosshair; }
+
+    #panel {
+      position: fixed; top: 16px; left: 16px; width: 360px;
+      max-height: calc(100% - 32px); overflow-y: auto;
+      background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 18px 18px 14px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    header h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+    header p { margin: 2px 0 0; color: var(--ink-2); }
+
+    .search { position: relative; }
+    #q {
+      width: 100%; font: inherit; padding: 10px 12px 10px 36px;
+      border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2);
+      outline: none; transition: border-color .15s, background .15s;
+    }
+    #q:focus { border-color: var(--accent); background: var(--surface); }
+    .search::before {
+      content: ""; position: absolute; left: 12px; top: 50%; width: 14px; height: 14px; transform: translateY(-50%);
+      background: no-repeat center/14px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237a8193' stroke-width='2.5' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-4-4'/%3E%3C/svg%3E");
+    }
+    #results { list-style: none; margin: 4px 0 0; padding: 0; }
+    #results:empty { display: none; }
+    #results button {
+      width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0;
+      padding: 8px 10px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column;
+    }
+    #results button:hover, #results button:focus-visible { background: var(--surface-2); outline: none; }
+    #results small, .muted { color: var(--muted); }
+    #results li.muted { padding: 8px 10px; }
+
+    .label { display: block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    #origin-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    #origin-row strong { font-weight: 600; }
+    #hint { margin: 0; padding: 10px 12px; border-radius: 10px; background: #eef3fd; color: #27467f; }
+    .row { display: flex; gap: 8px; align-items: center; }
+
+    button.chip {
+      font: inherit; font-weight: 500; border: 1px solid var(--line); background: var(--surface);
+      padding: 6px 12px; border-radius: 999px; cursor: pointer; color: var(--ink); white-space: nowrap;
+    }
+    button.chip:hover { background: var(--surface-2); }
+    .link-btn { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; font-weight: 500; }
+    .link-btn:hover { text-decoration: underline; }
+    .icon-btn { font: 20px/1 inherit; width: 30px; height: 30px; border-radius: 8px; border: 0; background: none; cursor: pointer; color: var(--muted); }
+    .icon-btn:hover { background: var(--surface-2); color: var(--ink); }
+
+    #legend-bar { height: 12px; border-radius: 6px; }
+    #legend-ticks { position: relative; height: 18px; margin: 4px 6px 0; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+    #legend-ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+    #legend-ticks span:first-child { transform: none; left: -6px !important; }
+    #legend-ticks span:last-child { transform: translateX(-100%); left: calc(100% + 6px) !important; }
+    #legend p { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+
+    #trip { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .trip-head { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+    .trip-head strong { font-weight: 600; }
+    .total { display: flex; align-items: center; gap: 10px; font-size: 30px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .swatch { width: 16px; height: 16px; border-radius: 4px; flex: none; }
+    .timeline { display: flex; gap: 2px; height: 8px; }
+    .timeline span { border-radius: 4px; min-width: 4px; }
+    .timeline .leg-drive { background: var(--drive); }
+    .timeline .leg-airport { background: var(--airport); }
+    .timeline .leg-flight { background: var(--flight); }
+    .legs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+    .legs li { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+    .leg-icon { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-size: 15px; flex: none; background: var(--surface-2); }
+    .leg-icon.leg-flight { background: #e6eefc; }
+    .leg-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .leg-text strong { font-weight: 600; }
+    .leg-text small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .leg-time { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    details { border-top: 1px solid var(--line); padding-top: 12px; }
+    summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "▾"; color: var(--muted); transition: transform .15s; }
+    details[open] summary::after { transform: rotate(180deg); }
+    #settings-body { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+    .setting { display: flex; flex-direction: column; gap: 4px; }
+    .setting-head { display: flex; justify-content: space-between; gap: 8px; color: var(--ink-2); }
+    .setting output { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+    input[type=range] { width: 100%; accent-color: var(--accent); }
+
+    footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
+    footer p { margin: 0 0 6px; }
+
+    #tooltip {
+      position: fixed; left: 0; top: 0; pointer-events: none; z-index: 5;
+      background: var(--ink); color: #fff; font-weight: 600; font-variant-numeric: tabular-nums;
+      padding: 4px 8px; border-radius: 6px; font-size: 13px; box-shadow: var(--shadow);
+    }
+    #status {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 5;
+      background: var(--surface); padding: 8px 14px; border-radius: 999px; box-shadow: var(--shadow);
+      font-weight: 500; color: var(--ink-2);
+    }
+    [hidden] { display: none !important; }
+
+    .pin { width: 26px; height: 34px; cursor: pointer; filter: drop-shadow(0 2px 3px rgba(0,0,0,.3)); }
+    .pin::before {
+      content: ""; position: absolute; inset: 0 0 8px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg) scale(.8);
+      transform-origin: 50% 50%; border: 3px solid #fff;
+    }
+    .pin::after { content: ""; position: absolute; left: 50%; top: 9px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: #fff; }
+    .pin-origin::before { background: var(--origin); }
+    .pin-dest::before { background: var(--dest); }
+    .pin-origin { cursor: grab; }
+
+    @media (max-width: 640px) {
+      #panel {
+        top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 48%;
+        border-radius: var(--radius) var(--radius) 0 0; padding: 14px 16px;
+      }
+      header p { display: none; }
+      #status { top: 12px; }
+    }
+  </style>
+</head>
+<body class="picking">
+  <div id="map"></div>
+
+  <aside id="panel">
+    <header>
+      <h1>¿Qué tan lejos?</h1>
+      <p>Tiempo real puerta a puerta: auto, aeropuerto y vuelo.</p>
+    </header>
+
+    <div class="search">
+      <input id="q" type="search" autocomplete="off" placeholder="Buscar punto de partida…" aria-label="Buscar lugar">
+      <ul id="results"></ul>
+    </div>
+
+    <p id="hint"></p>
+    <div class="row" id="cancel-row"><button class="chip" id="cancel-pick" hidden>Mantener origen actual</button></div>
+
+    <section id="origin-row" hidden>
+      <div><span class="label">Origen</span><strong id="origin-name">…</strong></div>
+      <button class="chip" id="change-origin">Cambiar</button>
+    </section>
+
+    <section id="legend" hidden>
+      <div id="legend-bar"></div>
+      <div id="legend-ticks"></div>
+      <p>Rojo desde <strong id="legend-red"></strong>. Las líneas finas marcan <span id="legend-lines"></span> Toca el mapa para ver el viaje a ese punto.</p>
+    </section>
+
+    <section id="trip" hidden></section>
+
+    <details id="settings">
+      <summary>Ajustes del modelo</summary>
+      <div id="settings-body"></div>
+    </details>
+
+    <footer>
+      <p>Cada punto suma la mejor combinación de auto y vuelos: caminos principales a velocidades promedio, rutas aéreas reales con su duración, más el tiempo en aeropuertos y escalas. Lejos de los caminos se avanza más lento, y el mar no se cruza.</p>
+      <p id="data-stats"></p>
+    </footer>
+  </aside>
+
+  <div id="tooltip" hidden></div>
+  <div id="status" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
